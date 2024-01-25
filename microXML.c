@@ -15,51 +15,92 @@ MicroXML *__MICRO__INIT__()
     __micro__->parent = NULL;
     __micro__->child = NULL;
 
+    __micro__->initPos = 0;
+    __micro__->finalPos = 0;
+    __micro__->finalElement = 0;
+
+    __micro__->type = NULL;
+    __micro__->element = NULL;
+    __micro__->source = NULL;
+
     return __micro__;
 }
 
 MicroXML *__MICRO_NEXT__(MicroXML *__micro__)
 {
+    bool __in__tag__ = false;
+    int __tag__start__ = -1;
+    int __tag__end__ = -1;
 
-    if (__micro__->prev == NULL)
-    {
-        int __init__ = -1;
-        int __final__ = -1;
-        
-        int __name__init__ = -1;
-        int __name__final__ = -1;
+    MicroXML *__next__ = NULL;
 
     
-        for (int i = 0; i < strlen(__micro__->source); ++i)
+    for (int i = __micro__->initPos; i < strlen(__micro__->source); ++i)
+    {
+        if (__micro__->source[i] == '<' && __micro__->source[__min(i + 1, strlen(__micro__->source))] != '/'
+        && MicroCount(MicroSubtr(__micro__->source, 0, i), '\'') % 2 == 0
+        && MicroCount(MicroSubtr(__micro__->source, 0, i), '\"') % 2 == 0)
         {
-            if (__micro__->source[i] == ' ' && __name__final__ == -1)
-            {
-                __name__final__ = i-1;
-            }
-
-            if (__micro__->source[i] == '<' && __init__ == -1)
-            {
-                __init__ = i;
-                __name__init__ = __min(i + 1, strlen(__micro__->source));
-            }
-
-            if (__micro__->source[i] == '>' && __final__ == -1 && 
-            (MicroCount(MicroSubtr(__micro__->source, __init__, i), '\"') % 2 == 0))
-            {
-                __final__ = i;
-            }
+            __in__tag__ = true;
+            __tag__start__ = i;
         }
 
-        const char *type = MicroSubtr(__micro__->source, __name__init__, __name__final__);
-        __micro__->type = type;
-        __micro__->element = MicroSubtr(__micro__->source, __init__, __final__);
-        __micro__->initPos = __init__;
-        __micro__->finalPos = __final__;
+        if ((__micro__->source[i] == '>' || __micro__->source[i] == ' ')
+        && MicroCount(MicroSubtr(__micro__->source, 0, i), '\'') % 2 == 0
+        && MicroCount(MicroSubtr(__micro__->source, 0, i), '\"') % 2 == 0)
+        {
+            if (__in__tag__)
+            {
+                __in__tag__ = false;
+                __tag__end__ = i;
+
+                char *type = (char *)MicroSubtr(__micro__->source, __tag__start__ + 1, __tag__end__ - __tag__start__ - 1);
+                __micro__->type = type;
+
+                __micro__->initPos = __tag__start__;
+                __micro__->finalPos = __tag__end__;
+
+                if (__micro__->source[i] == ' ')
+                {
+                    int j = i + 1;
+                    while (__micro__->source[j] != '>' && j < strlen(__micro__->source))
+                    {
+                        j++;
+                    }
+
+                    
+                    int __final__attributes__ = j;
+                    int __init__ = 0;
+
+                    const char *__atribute__ = MicroRemoveChr(MicroSubtr(__micro__->source, __tag__start__ + strlen(type) + 1, __final__attributes__ - __tag__start__ - strlen(type) - 1), ' ');
+                    
+                    for (int i = 0; i < strlen(__atribute__); ++i)
+                    {
+                        if (__atribute__[i] == '=')
+                        {
+                            printf("%s\n", MicroSubtr(__atribute__, __init__, i));
+                            __init__ = i+1;
+                        }
+                    }
+
+                }
+
+
+                __tag__start__ = -1;
+                __tag__end__ = -1;    
+
+                
+
+            }
+        }
     }
 
 
-    return NULL;
+    return NULL;    
 }
+
+    
+
 
 
 MicroXML *MicroParse(const char *source)
@@ -72,7 +113,6 @@ MicroXML *MicroParse(const char *source)
 
 const char *MicroSubtr(const char *str, int pos, int len)
 {
-    len = len + 1;
     char *temp = (char *)malloc(len + 1);
 
     if (temp == NULL)
@@ -90,13 +130,32 @@ const char *MicroSubtr(const char *str, int pos, int len)
     return temp;
 }
 
+const char *MicroRemoveChr(const char *str, char chr) {
+
+    char *otherStr;
+
+    for (int i = 0; str[i] != '\0'; ++i) 
+    {
+        while (str[i] == ' ') 
+        {
+            for (int j = i; str[j] != '\0'; ++j) 
+            {
+                otherStr[j] = str[j + 1];
+            }
+        }
+    }
+
+    return otherStr;
+}
+
 int MicroCount(const char *str, char chr)
 {
     int counter = 0;
 
-    while (*str != '\0') {
-
-        if (*str == chr) {
+    while (*str != '\0') 
+    {
+        if (*str == chr) 
+        {
             counter++;
         }
 
@@ -104,6 +163,43 @@ int MicroCount(const char *str, char chr)
     }
 
     return counter;
+}
+
+int MicroStrCount(const char *str, const char *sub)
+{
+    int count = 0;
+    size_t substr_len = strlen(sub);
+
+    while (*str) 
+    {
+        if (strncmp(str, sub, substr_len) == 0) 
+        {
+            count++;
+            str += substr_len;
+        }
+        else 
+        {
+            str++;
+        }
+    }
+
+    return count;
+}
+
+int MicroGetSub(const char *str, const char *sub, int index) 
+{
+    const char *pos = str;
+    int count = 0;
+    index += 1;
+
+    while ((pos = strstr(pos, sub)) != NULL) {
+        if (++count == index) {
+            return pos - str;
+        }
+        pos += strlen(sub);
+    }
+
+    return -1; // Retorna -1 se não encontrar a substring na posição especificada
 }
 
 int MicroSubpos(const char *str, const char *sub) 
